@@ -1,0 +1,143 @@
+"""
+嵌入模块 - 基于 BGE-M3 的文本向量化
+工单编号：人工智能NLP-RAG-PDF文档的表格解析及检索优化
+"""
+import os
+import time
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from config import (EMBEDDING_MODEL_PATH, EMBEDDING_DIM,
+                    EMBEDDING_DEVICE, EMBEDDING_BATCH_SIZE,
+                    EMBEDDING_MAX_SEQ_LENGTH, log)
+
+
+class BGEM3Embedding:
+    """BGE-M3 嵌入模型封装，生成稠密向量和稀疏向量"""
+
+    def __init__(self, model_path: str = EMBEDDING_MODEL_PATH,
+                 device: str = EMBEDDING_DEVICE):
+        self.model_path = model_path
+        self.device = device
+        self.model = None
+        self._load_model()
+
+    def _load_model(self):
+        """加载 BGE-M3 模型"""
+        log(f"加载 BGE-M3 模型: {self.model_path}", "EMBED")
+        log(f"设备: {self.device}", "EMBED")
+
+        start = time.time()
+        self.model = SentenceTransformer(
+            self.model_path,
+            device=self.device,
+            trust_remote_code=True,
+        )
+        # FP16 半精度加载，显存从 ~7.5GB 降至 ~3.5GB
+        if self.device == "cuda":
+            self.model.half()
+            log("已启用 FP16 半精度推理（显存占用减半）", "EMBED")
+
+        self.model.max_seq_length = EMBEDDING_MAX_SEQ_LENGTH
+        elapsed = time.time() - start
+        log(f"模型加载完成 (耗时 {elapsed:.1f}s)", "EMBED")
+
+        # 验证模型维度
+        test_emb = self.model.encode(["test"], show_progress_bar=False)
+        actual_dim = len(test_emb[0])
+        log(f"模型输出维度: {actual_dim}", "EMBED")
+
+    def encode_dense(self, texts: list, batch_size: int = EMBEDDING_BATCH_SIZE,
+                     normalize: bool = True) -> np.ndarray:
+        """
+        生成稠密向量
+
+        Args:
+            texts: 文本列表
+            batch_size: 批处理大小
+            normalize: 是否归一化
+
+        Returns:
+            numpy array, shape (n, dim)
+        """
+        if not texts:
+            return np.array([])
+
+        log(f"编码 {len(texts)} 条文本的稠密向量 (batch_size={batch_size})", "EMBED")
+        start = time.time()
+
+        embeddings = self.model.encode(
+            texts,
+            batch_size=batch_size,
+            show_progress_bar=True,
+            normalize_embeddings=normalize,
+        )
+
+        elapsed = time.time() - start
+        log(f"稠密向量编码完成 (耗时 {elapsed:.2f}s, {len(texts)/max(elapsed,0.01):.1f} 条/s)", "EMBED")
+        return np.array(embeddings, dtype=np.float32)
+
+    def encode_sparse(self, texts: list) -> list:
+        """
+        生成稀疏向量（词权重）
+
+        Args:
+            texts: 文本列表
+
+        Returns:
+            [{token_id: weight, ...}, ...] 每个文本的词权重字典
+        """
+        if not texts:
+            return []
+
+        log(f"编码 {len(texts)} 条文本的稀疏向量", "EMBED")
+        start = time.time()
+
+        # SentenceTransformer 的 BGE-M3 支持 sparse 输出
+        sparse_embs = []
+        for text in texts:
+            output = self.model.encode(
+                text,
+                output_value="token_embeddings",
+                show_progress_bar=False,
+            )
+            # 获取词级别的权重（简化实现）
+            tokens = self.model.tokenizer.tokenize(text)
+            token_ids = self.model.tokenizer.convert_tokens_to_ids(tokens)
+
+            weights = {}
+            for tid in set(token_ids):
+                weights[int(tid)] = float(token_ids.count(tid)) / max(len(token_ids), 1)
+            sparse_embs.append(weights)
+
+        elapsed = time.time() - start
+        log(f"稀疏向量编码完成 (耗时 {elapsed:.2f}s)", "EMBED")
+        return sparse_embs
+
+    def encode_query(self, query: str) -> np.ndarray:
+        """编码单个查询（带指令优化）"""
+        instruction = "为这个句子生成表示以用于检索相关文档："
+        prefixed_query = f"{instruction} {query}"
+        return self.encode_dense([prefixed_query], batch_size=1)[0]
+
+    def compute_similarity(self, emb1: np.ndarray, emb2: np.ndarray) -> float:
+        """计算两个向量的余弦相似度"""
+        emb1 = emb1 / (np.linalg.norm(emb1) + 1e-10)
+        emb2 = emb2 / (np.linalg.norm(emb2) + 1e-10)
+        return float(np.dot(emb1, emb2))
+
+
+def create_embedding() -> BGEM3Embedding:
+    """工厂函数 - 创建嵌入模型实例"""
+    return BGEM3Embedding()
+
+
+if __name__ == "__main__":
+    # 测试
+    embed = create_embedding()
+    texts = ["武汉力源信息技术股份有限公司本次发行股数是多少？", "招股说明书中的财务数据"]
+    dense = embed.encode_dense(texts)
+    print(f"稠密向量形状: {dense.shape}")
+    print(f"向量前5维: {dense[0][:5]}")
+    q_vec = embed.encode_query("发行股数是多少")
+    sim = embed.compute_similarity(dense[0], q_vec)
+    print(f"查询相似度: {sim:.4f}")

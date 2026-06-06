@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG PDF问答系统 v2（优化版）</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:-apple-system,"Microsoft YaHei",sans-serif; background:#f0f2f5; }
+        .header { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; padding:24px; text-align:center; }
+        .header h1 { font-size:26px; }
+        .header p { font-size:13px; opacity:.8; }
+        .container { max-width:1000px; margin:0 auto; padding:20px; }
+        .card { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,.08); padding:20px; margin-bottom:16px; }
+        .card h3 { font-size:15px; margin-bottom:10px; color:#333; }
+        .mode-switch { display:flex; gap:10px; margin-bottom:12px; }
+        .mode-btn { padding:6px 18px; border:2px solid #667eea; border-radius:20px; background:#fff; color:#667eea; cursor:pointer; font-size:13px; }
+        .mode-btn.active { background:#667eea; color:#fff; }
+        .input-area { display:flex; gap:10px; margin-bottom:10px; }
+        .input-area input { flex:1; padding:10px 14px; border:2px solid #e0e0e0; border-radius:8px; font-size:14px; outline:none; }
+        .input-area input:focus { border-color:#667eea; }
+        .input-area button { padding:10px 24px; background:#667eea; color:#fff; border:none; border-radius:8px; cursor:pointer; }
+        .input-area button:disabled { background:#aaa; }
+        .quick-questions { display:flex; flex-wrap:wrap; gap:6px; }
+        .quick-q-btn { padding:4px 12px; background:#f5f5ff; border:1px solid #ddd; border-radius:14px; font-size:12px; cursor:pointer; color:#666; }
+        .quick-q-btn:hover { background:#667eea; color:#fff; border-color:#667eea; }
+        .loading { display:none; text-align:center; padding:20px; color:#999; }
+        .loading.show { display:block; }
+        .spinner { display:inline-block; width:22px; height:22px; border:3px solid #eee; border-top-color:#667eea; border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:8px; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .result-area { display:none; }
+        .result-area.show { display:block; }
+        .answer-box { background:#f8f9ff; border-left:4px solid #667eea; padding:14px; border-radius:0 8px 8px 0; line-height:1.8; white-space:pre-wrap; font-size:14px; }
+        .sources-box { margin-top:8px; background:#fafafa; border:1px solid #eee; border-radius:8px; padding:10px; }
+        .sources-box summary { cursor:pointer; color:#667eea; font-size:13px; }
+        .source-item { padding:6px; margin:3px 0; background:#fff; border:1px solid #f0f0f0; border-radius:4px; font-size:12px; color:#555; line-height:1.5; }
+        .source-score { float:right; color:#999; font-size:11px; }
+        .compare-section { display:none; }
+        .compare-section.show { display:block; }
+        .compare-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        .compare-item { padding:12px; border-radius:8px; }
+        .compare-item.rag { background:#e8f5e9; border:1px solid #c8e6c9; }
+        .compare-item.llm { background:#fff3e0; border:1px solid #ffe0b2; }
+        .compare-item h4 { font-size:13px; margin-bottom:6px; }
+        .compare-item p { font-size:12px; line-height:1.6; white-space:pre-wrap; }
+        .llm-toggle { display:flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; color:#666; }
+        .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold; margin-left:6px; }
+        .badge-rag { background:#e8f5e9; color:#2e7d32; }
+        @media (max-width:768px) { .compare-grid { grid-template-columns:1fr; } .input-area { flex-direction:column; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📄 RAG PDF 问答系统 v2（优化版）</h1>
+        <p>BGE-M3稠密向量 + BM25关键词 + RRF融合 + Reranker重排序</p>
+    </div>
+    <div class="container">
+        <div class="card">
+            <h3>💬 提问 <span class="badge badge-rag">优化版</span></h3>
+            <div class="mode-switch">
+                <button class="mode-btn active" onclick="switchMode('rag',this)">🔍 RAG 模式</button>
+                <button class="mode-btn" onclick="switchMode('compare',this)">⚖️ 对比模式</button>
+            </div>
+            <div class="input-area">
+                <input type="text" id="qInput" placeholder="例如：公司注册资本是多少？" onkeydown="if(event.key==='Enter') ask()">
+                <button id="askBtn" onclick="ask()">🚀 提问</button>
+            </div>
+            <div class="quick-questions">
+                <span style="font-size:11px;color:#999;padding:4px 0;">快捷：</span>
+                <button class="quick-q-btn" onclick="quick('公司注册资本是多少？')">注册资本</button>
+                <button class="quick-q-btn" onclick="quick('法定代表人是谁？')">法定代表人</button>
+                <button class="quick-q-btn" onclick="quick('军用领域收入是多少？')">军用收入</button>
+                <button class="quick-q-btn" onclick="quick('参与制定了哪个技术标准？')">技术标准</button>
+                <button class="quick-q-btn" onclick="quick('电子信息行业的上游涉及哪些企业？')">上游企业</button>
+                <button class="quick-q-btn" onclick="quick('计划使用多少募集资金补充流动资金？')">募集资金</button>
+            </div>
+            <div class="llm-toggle">
+                <input type="checkbox" id="llmOnly">
+                <label for="llmOnly">纯LLM模式（不检索文档）</label>
+            </div>
+        </div>
+
+        <div class="loading" id="loading"><span class="spinner"></span>检索+生成回答中...</div>
+
+        <div class="result-area" id="resultArea">
+            <div class="card">
+                <h3>📝 回答</h3>
+                <div class="answer-box" id="ragAnswer">等待提问...</div>
+                <details class="sources-box">
+                    <summary>📚 检索来源（<span id="srcCount">0</span>个片段）</summary>
+                    <div id="srcList"></div>
+                </details>
+            </div>
+            <div class="card compare-section" id="compareSec">
+                <h3>⚖️ RAG vs 纯LLM</h3>
+                <div class="compare-grid">
+                    <div class="compare-item rag"><h4>🔍 RAG</h4><p id="cmpRag">-</p></div>
+                    <div class="compare-item llm"><h4>🤖 纯LLM</h4><p id="cmpLlm">-</p></div>
+                </div>
+            </div>
+            <div class="card" style="padding:10px 20px;background:#fafafa;">
+                <span style="font-size:12px;color:#999;">⏱️ 响应时间：</span>
+                <span id="respTime" style="font-size:12px;color:#333;">-</span>
+            </div>
+        </div>
+    </div>
+    <script>
+        let mode='rag';
+        function switchMode(m,b){mode=m;document.querySelectorAll('.mode-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById('compareSec').classList.toggle('show',m==='compare');}
+        function quick(q){document.getElementById('qInput').value=q;ask();}
+        async function ask(){
+            const q=document.getElementById('qInput').value.trim();
+            if(!q)return alert('请输入问题');
+            const llm=document.getElementById('llmOnly').checked;
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('resultArea').classList.remove('show');
+            document.getElementById('askBtn').disabled=true;
+            try{
+                const r=await fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,compare_mode:mode==='compare',llm_only:llm})});
+                const d=await r.json();
+                document.getElementById('loading').classList.remove('show');
+                document.getElementById('resultArea').classList.add('show');
+                document.getElementById('ragAnswer').textContent=d.rag_answer||'无回答';
+                document.getElementById('respTime').textContent=d.response_time||'-';
+                const src=d.sources||[];
+                document.getElementById('srcCount').textContent=src.length;
+                document.getElementById('srcList').innerHTML=src.map((s,i)=>`<div class="source-item"><span class="source-score">${(s.score||0).toFixed(4)}</span><div>${s.text||''}</div></div>`).join('');
+                if(d.compare){
+                    document.getElementById('cmpRag').textContent=d.rag_answer||'-';
+                    document.getElementById('cmpLlm').textContent=d.llm_answer||'-';
+                }
+            }catch(e){
+                document.getElementById('loading').classList.remove('show');
+                document.getElementById('ragAnswer').textContent='请求失败: '+e.message;
+                document.getElementById('resultArea').classList.add('show');
+            }finally{document.getElementById('askBtn').disabled=false;}
+        }
+    </script>
+</body>
+</html>

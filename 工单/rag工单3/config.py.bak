@@ -1,0 +1,94 @@
+"""
+配置模块
+工单编号：人工智能NLP-RAG-PDF文档的表格解析及检索优化
+"""
+import os
+import sys
+from pathlib import Path
+
+# ========== 基础路径 ==========
+# 自动适配 Windows 和 WSL 路径
+if sys.platform == "win32":
+    BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+else:
+    # WSL 环境
+    BASE_DIR = Path("/mnt/c/Users/31326/Desktop/rag工单3")
+
+PDF_PATH = str(BASE_DIR / "招股说明书1-无水印.pdf")
+OUTPUT_DIR = str(BASE_DIR / "output")
+MINERU_OUTPUT_DIR = str(BASE_DIR / "mineru_output")
+TEMPLATES_DIR = str(BASE_DIR / "templates")
+INDEX_HTML = str(BASE_DIR / "templates" / "index.html")
+
+# ========== BGE-M3 模型 ==========
+if sys.platform == "win32":
+    EMBEDDING_MODEL_PATH = r"C:\Users\31326\Desktop\bge-m3"
+else:
+    EMBEDDING_MODEL_PATH = "/mnt/c/Users/31326/Desktop/bge-m3"
+EMBEDDING_DIM = 1024  # BGE-M3 的向量维度
+EMBEDDING_DEVICE = "cuda"  # cuda / cpu
+EMBEDDING_BATCH_SIZE = 2
+EMBEDDING_MAX_SEQ_LENGTH = 1024  # 保守设置，防止内存溢出
+
+# ========== DeepSeek API ==========
+LLM_API_KEY = "sk-vtizzaqqklkuzxuhtvyveoymmpnamrkyyyimkpdinloyruxs"
+LLM_API_BASE = "https://api.siliconflow.cn/v1"
+LLM_MODEL = "deepseek-ai/DeepSeek-V4-Flash"
+LLM_TEMPERATURE = 0.1
+LLM_MAX_TOKENS = 2048
+LLM_TIMEOUT = 30
+
+# ========== Milvus 配置 ==========
+MILVUS_HOST = "localhost"
+MILVUS_PORT = "19530"
+MILVUS_COLLECTION = "rag_table_prospectus"
+MILVUS_INDEX_TYPE = "IVF_FLAT"
+MILVUS_METRIC_TYPE = "COSINE"
+MILVUS_NLIST = 1024
+MILVUS_NPROBE = 32
+
+# ========== 文本切分配置 ==========
+CHUNK_SIZE = 512
+CHUNK_OVERLAP = 64
+
+# ========== 检索配置 ==========
+TOP_K = 5
+RERANK_TOP_K = 3
+HYBRID_WEIGHT_DENSE = 0.5
+HYBRID_WEIGHT_SPARSE = 0.3
+HYBRID_WEIGHT_TABLE = 0.2
+
+# ========== 验证问题列表 ==========
+TEST_QUESTIONS = [
+    {"id": 1, "question": "武汉力源信息技术股份有限公司本次发行股数是多少，占发行后总股本的比例是多少？"},
+    {"id": 2, "question": "武汉力源信息技术股份有限公司本次募集资金拟投资哪些项目？"},
+    {"id": 3, "question": "与武汉力源信息技术股份有限公司存在控制关系的关联方是谁，持股比例和本公司关系是什么？"},
+    {"id": 4, "question": "与武汉力源信息技术股份有限公司不存在控制关系的关联方企业有哪些？"},
+    {"id": 260, "question": "报告期内，武汉兴图新科电子股份有限公司来自军用领域的收入分别是多少？"},
+    {"id": 95, "question": "武汉兴图新科电子股份有限公司参与制定了哪个技术标准？"},
+    {"id": 33, "question": "报告期内，武汉兴图新科电子股份有限公司来自军用领域的收入占主营业务收入的比重分别是多少？"},
+    {"id": 34, "question": "根据武汉兴图新科电子股份有限公司招股意向书，电子信息行业的上游涉及哪些企业？"},
+    {"id": 957, "question": "武汉兴图新科电子股份有限公司在哪个领域已经成为重要供应商？"},
+    {"id": 793, "question": "根据武汉兴图新科电子股份有限公司招股意向书，电子信息行业的下游主要包括哪些行业？"},
+    {"id": 795, "question": "武汉兴图新科电子股份有限公司参与的哪个工程荣获了国家科技进步一等奖？"},
+    {"id": 543, "question": "武汉兴图新科电子股份有限公司注册资本是多少？"},
+    {"id": 531, "question": "武汉兴图新科电子股份有限公司法定代表人是谁？"},
+    {"id": 207, "question": "武汉兴图新科电子股份有限公司计划使用本次发行募集资金的多少用于补充流动资金？"},
+]
+
+
+def ensure_dirs():
+    """确保所有输出目录存在"""
+    for d in [OUTPUT_DIR, MINERU_OUTPUT_DIR, TEMPLATES_DIR]:
+        os.makedirs(d, exist_ok=True)
+
+
+def log(msg: str, tag: str = "INFO"):
+    """带时间戳的日志输出"""
+    from datetime import datetime
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{ts}] [{tag}] {msg}")
+
+
+def is_windows():
+    return sys.platform == "win32"

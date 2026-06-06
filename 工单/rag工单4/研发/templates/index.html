@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<!--
+index.html - RAG工单4 前端页面
+工单编号: 人工智能NLP-RAG-图像内容解析及检索优化
+功能: 提供问答交互界面，支持输入问题、展示答案、
+      置信度评估、来源追溯和响应时间显示
+-->
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG工单4 - PDF图像内容解析及检索优化</title>
+    <style>
+        /* ===== 全局样式 ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            min-height: 100vh;
+        }
+
+        /* ===== 头部 ===== */
+        .header {
+            background: linear-gradient(135deg, #1a73e8, #1557b0);
+            color: white;
+            padding: 20px 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 22px; margin-bottom: 5px; }
+        .header .subtitle { font-size: 13px; opacity: 0.85; }
+
+        /* ===== 主体容器 ===== */
+        .container { max-width: 900px; margin: 20px auto; padding: 0 20px; }
+
+        /* ===== 输入区域 ===== */
+        .input-area {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .input-area textarea {
+            width: 100%;
+            height: 80px;
+            padding: 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 8px;
+            font-size: 15px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        .input-area textarea:focus {
+            outline: none;
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 2px rgba(26,115,232,0.15);
+        }
+
+        /* ===== 按钮 ===== */
+        .btn-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .btn-primary { background: #1a73e8; color: white; }
+        .btn-primary:hover { background: #1557b0; }
+        .btn-primary:disabled { background: #a0c4ff; cursor: not-allowed; }
+        .btn-secondary { background: #f0f0f0; color: #333; }
+        .btn-secondary:hover { background: #e0e0e0; }
+
+        /* ===== 加载状态 ===== */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 30px;
+        }
+        .loading.active { display: block; }
+        .spinner {
+            width: 36px; height: 36px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #1a73e8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ===== 答案区域 ===== */
+        .result-area { display: none; }
+        .result-area.active { display: block; }
+
+        .answer-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 15px;
+        }
+
+        /* ===== 答案内容 ===== */
+        .answer-text {
+            font-size: 15px;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            margin: 12px 0;
+            padding: 15px;
+            background: #f8f9fb;
+            border-radius: 8px;
+            border-left: 4px solid #1a73e8;
+        }
+
+        /* ===== 元数据 ===== */
+        .meta-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            font-size: 13px;
+            color: #666;
+            margin: 10px 0;
+        }
+        .meta-item {
+            background: #f5f5f5;
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+        .confidence-high { color: #389e0d; font-weight: 600; }
+        .confidence-medium { color: #d48806; font-weight: 600; }
+        .confidence-low { color: #cf1322; font-weight: 600; }
+
+        /* ===== 来源列表 ===== */
+        .source-list { margin-top: 10px; }
+        .source-item {
+            padding: 8px 12px;
+            background: #fafafa;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 13px;
+            border: 1px solid #eee;
+        }
+        .source-item .tag {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            margin-right: 6px;
+        }
+        .tag-image { background: #e6f7ff; color: #1890ff; }
+        .tag-text { background: #f6ffed; color: #52c41a; }
+
+        /* ===== 批量测试结果 ===== */
+        .batch-result { margin-top: 20px; }
+        .batch-item {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .batch-item .q { font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+        .batch-item .a {
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        /* ===== 错误提示 ===== */
+        .error-msg {
+            background: #fff2f0;
+            border: 1px solid #ffccc7;
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #cf1322;
+            margin: 10px 0;
+        }
+
+        /* ===== 快捷问题 ===== */
+        .quick-questions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .quick-q {
+            padding: 5px 12px;
+            background: #e8f0fe;
+            border-radius: 16px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #1a73e8;
+            border: 1px solid #d2e3fc;
+            transition: all 0.2s;
+        }
+        .quick-q:hover { background: #d2e3fc; }
+
+        /* ===== 页脚 ===== */
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== 头部 ===== -->
+<div class="header">
+    <h1>📄 PDF 图像内容解析及检索优化</h1>
+    <div class="subtitle">工单编号: 人工智能NLP-RAG-图像内容解析及检索优化 | 基于BGE-M3 + DeepSeek + Qwen-VL</div>
+</div>
+
+<!-- ===== 主体 ===== -->
+<div class="container">
+
+    <!-- ===== 输入区域 ===== -->
+    <div class="input-area">
+        <textarea id="questionInput" placeholder="请输入您的问题，例如：武汉力源信息技术股份有限公司本次发行股数是多少？"></textarea>
+        <div class="btn-row">
+            <button class="btn btn-primary" id="askBtn" onclick="askQuestion()">🔍 提问</button>
+            <button class="btn btn-secondary" onclick="runBatchTest()">📊 批量测试</button>
+            <button class="btn btn-secondary" onclick="clearResult()">🗑️ 清空</button>
+            <button class="btn btn-secondary" id="langBtn" onclick="toggleLang()" style="min-width:70px">🇨🇳 中</button>
+        </div>
+        <!-- 快捷问题 -->
+        <div class="quick-questions">
+            <span class="quick-q" onclick="quickAsk(this)">组织结构图销售部构成</span>
+            <span class="quick-q" onclick="quickAsk(this)">IC市场增长率最快行业</span>
+            <span class="quick-q" onclick="quickAsk(this)">本次发行股数</span>
+            <span class="quick-q" onclick="quickAsk(this)">募集资金投资项目</span>
+            <span class="quick-q" onclick="quickAsk(this)">关联方持股比例</span>
+        </div>
+    </div>
+
+    <!-- ===== 加载动画 ===== -->
+        <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div id="loadingMessage">正在检索并生成答案，请稍候...</div>
+        <div style="font-size:12px;color:#999;margin-top:6px;">首次加载需加载BGE-M3模型，约30-60秒，后续秒回</div>
+    </div>
+
+    <!-- ===== 结果区域 ===== -->
+    <div class="result-area" id="resultArea">
+        <div class="answer-card" id="answerCard"></div>
+        <div class="batch-result" id="batchResult"></div>
+    </div>
+</div>
+
+<!-- ===== 页脚 ===== -->
+<div class="footer">RAG工单4 @ 八维文化与产业研究院</div>
+
+<script>
+    // ============================================================
+    // 语言切换
+    // ============================================================
+    let currentLang = 'auto';
+
+    function toggleLang() {
+        if (currentLang === 'auto' || currentLang === 'zh') {
+            currentLang = 'en';
+            document.getElementById('langBtn').textContent = '🇬🇧 EN';
+        } else {
+            currentLang = 'auto';
+            document.getElementById('langBtn').textContent = '🇨🇳 中';
+        }
+    }
+
+    // ============================================================
+    // 提问功能
+    // ============================================================
+    async function askQuestion() {
+        // 获取问题文本
+        const question = document.getElementById('questionInput').value.trim();
+        if (!question) {
+            alert('请输入问题');
+            return;
+        }
+
+        // 显示加载状态
+        showLoading(true);
+        hideResult();
+        hideBatch();
+
+        try {
+            // 调用后端API
+            const response = await fetch('/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: question, lang: currentLang })
+            });
+
+            const data = await response.json();
+
+            // 显示答案
+            showLoading(false);
+            displayAnswer(data);
+
+        } catch (error) {
+            showLoading(false);
+            showError('请求失败: ' + error.message);
+        }
+    }
+
+    // ============================================================
+    // 显示答案
+    // ============================================================
+    function displayAnswer(data) {
+        const card = document.getElementById('answerCard');
+
+        // 置信度样式
+        const confMap = {
+            'high': '<span class="confidence-high">高</span>',
+            'medium': '<span class="confidence-medium">中</span>',
+            'low': '<span class="confidence-low">低</span>'
+        };
+        const confHtml = confMap[data.confidence] || data.confidence;
+
+        // 来源列表
+        let sourcesHtml = '';
+        if (data.sources && data.sources.length > 0) {
+            sourcesHtml = '<div class="source-list"><strong>📎 来源:</strong>';
+            data.sources.forEach(s => {
+                const tag = s.has_image
+                    ? '<span class="tag tag-image">🖼️ 图片</span>'
+                    : '<span class="tag tag-text">📄 文本</span>';
+                sourcesHtml += `<div class="source-item">${tag} 第 ${s.page_num} 页 | 相关度: ${(s.score * 100).toFixed(1)}%</div>`;
+            });
+            sourcesHtml += '</div>';
+        }
+
+        // 组装卡片
+        card.innerHTML = `
+            <h3>💬 问题</h3>
+            <div style="font-size:15px;margin-bottom:12px;">${data.question}</div>
+            <h3>✅ 答案</h3>
+            <div class="answer-text">${data.answer}</div>
+            <div class="meta-row">
+                <span class="meta-item">🎯 置信度: ${confHtml}</span>
+                <span class="meta-item">⏱️ 响应时间: ${(data.response_time || 0).toFixed(2)}秒</span>
+                <span class="meta-item">📄 参考来源: ${data.source_count || 0} 个</span>
+            </div>
+            ${sourcesHtml}
+        `;
+
+        showResult();
+    }
+
+    // ============================================================
+    // 批量测试
+    // ============================================================
+    async function runBatchTest() {
+        showLoading(true);
+        hideResult();
+        hideBatch();
+
+        try {
+            const response = await fetch('/batch_test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await response.json();
+
+            showLoading(false);
+
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+
+            // 显示批量结果
+            const container = document.getElementById('batchResult');
+            let modeNotice = data.mode === 'retrieval_only'
+                ? '<div style="background:#e6f7ff;padding:8px 14px;border-radius:8px;margin-bottom:12px;font-size:13px;color:#1890ff">🔍 仅检索模式（未调LLM），展示命中的文档片段</div>'
+                : '';
+            let html = '<h3>📊 批量测试结果</h3>' + modeNotice;
+
+            data.results.forEach((r, idx) => {
+                let sourcesHtml = '';
+                if (r.sources && r.sources.length > 0) {
+                    sourcesHtml = '<div style="margin-top:6px;font-size:12px;color:#666;">';
+                    r.sources.forEach(s => {
+                        const tag = s.has_image ? '🖼️' : '📄';
+                        sourcesHtml += `<div style="padding:4px 0;border-bottom:1px solid #f0f0f0;">${tag} 第${s.page_num}页 | 相关度:${(s.score*100).toFixed(0)}%<br><span style="color:#999;font-size:11px;">${s.content_preview ? s.content_preview.substring(0,80)+'...' : ''}</span></div>`;
+                    });
+                    sourcesHtml += '</div>';
+                } else {
+                    sourcesHtml = '<div style="color:#cf1322;font-size:12px;">未找到相关文档</div>';
+                }
+
+                // 判断有图的问题
+                const hasChart = r.question.includes('组织结构') || r.question.includes('增长图') || r.question.includes('IC市场');
+                const chartTag = hasChart ? ' <span style="background:#fff7e6;padding:1px 8px;border-radius:10px;font-size:11px;color:#d48806">🖼️图表题</span>' : '';
+
+                html += `
+                    <div class="batch-item">
+                        <div class="q">Q${r.id}: ${r.question}${chartTag}</div>
+                        <div style="margin-top:6px;font-size:12px;color:#999;">
+                            检索耗时: ${r.search_time || 0}秒 | 命中: ${r.source_count} 个片段
+                        </div>
+                        ${sourcesHtml}
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            showBatch();
+
+        } catch (error) {
+            showLoading(false);
+            showError('批量测试失败: ' + error.message);
+        }
+    }
+
+    // ============================================================
+    // 快捷问题
+    // ============================================================
+    function quickAsk(el) {
+        const map = {
+            '组织结构图销售部构成': '武汉力源信息技术股份有限公司组织结构图中，销售部有几个部门构成，其中大客户销售部有几个销售处构成？',
+            'IC市场增长率最快行业': '武汉力源信息技术股份有限公司招股意向书中，从2008年中国IC市场应用结构与增长图中可以看出，增长率最快的是哪个行业？负增长的是哪个行业？',
+            '本次发行股数': '武汉力源信息技术股份有限公司本次发行股数是多少，占发行后总股本的比例是多少？',
+            '募集资金投资项目': '武汉力源信息技术股份有限公司本次募集资金拟投资哪些项目？',
+            '关联方持股比例': '与武汉力源信息技术股份有限公司存在控制关系的关联方是谁，持股比例和本公司关系是什么？',
+        };
+        const fullQ = map[el.textContent] || el.textContent;
+        document.getElementById('questionInput').value = fullQ;
+        askQuestion();
+    }
+
+    // ============================================================
+    // 辅助函数
+    // ============================================================
+    function showLoading(show) {
+        document.getElementById('loading').classList.toggle('active', show);
+        document.getElementById('askBtn').disabled = show;
+    }
+
+    function showResult() {
+        document.getElementById('resultArea').classList.add('active');
+    }
+
+    function hideResult() {
+        document.getElementById('resultArea').classList.remove('active');
+    }
+
+    function showBatch() {
+        document.getElementById('batchResult').style.display = 'block';
+        document.getElementById('resultArea').classList.add('active');
+    }
+
+    function hideBatch() {
+        document.getElementById('batchResult').style.display = 'none';
+    }
+
+    function clearResult() {
+        document.getElementById('questionInput').value = '';
+        document.getElementById('resultArea').classList.remove('active');
+        document.getElementById('answerCard').innerHTML = '';
+        document.getElementById('batchResult').innerHTML = '';
+        document.getElementById('batchResult').style.display = 'none';
+    }
+
+    function showError(msg) {
+        const card = document.getElementById('answerCard');
+        card.innerHTML = `<div class="error-msg">❌ ${msg}</div>`;
+        showResult();
+    }
+</script>
+</body>
+</html>

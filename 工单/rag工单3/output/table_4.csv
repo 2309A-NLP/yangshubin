@@ -1,0 +1,47 @@
+,,般出现在项目规模较大，且最终客户信用优良（如军方）情况下。
+,,般出现在项目规模较大，且最终客户信用优良（如军方）情况下。
+模拟信号,指,"信息参数在给定范围内表现为连续的信号。或在一段连续的时间间隔内，
+其代表信息的特征量可以在任意瞬间呈现为任意数值的信号。通常又把
+模拟信号称为连续信号，它在一定的时间范围内可以有无限多个不同的
+取值。"
+数字信号,指,"自变量、因变量是离散的信号，这种信号的自变量用整数表示，因变量
+用有限数字中的一个数字来表示。"
+"TCP/IP、
+TCP/IP 协议",指,"用于从应用程序到网络的数据传输控制的传输控制协议（Transmission
+Control Protocol）和负责计算机之间的通信因特网互联协议（Internet
+Protocol）。"
+PCB,指,"Printed Circuit Board，印制电路板；是电子元器件的支撑体，是电子元器
+件电气连接的载体"
+"DVI/VGA/
+HDMI/CVB
+S",指,"各种视频接口标准或格式。DVI（Digital Visual Interface）：一种数字视
+频信号显示接口标准；VGA（Video Graphics Array）：一种电脑信号模
+拟显示接口标准；HDMI（High Definition Multimedia Interface）：一种
+高速多媒体数字视频/音频接口标准；CVBS（Composite Video Broadcast
+Signal）：一种标清模拟信号显示接口标准。"
+MPEG,指,"一种被广泛应用的音视频压缩国际标准，包括 MPEG-1、MPEG-2、
+MPEG-4、MPEG-7 及MPEG-21 等。"
+H.26X,指,"一系列音视频压缩编码技术标准，主要包括H.264、H.265 等，H.264 是
+由ITU-T 视频编码专家组（VCEG）和ISO/IEC 运动图像专家组（MPEG）
+联合组成的联合视频组（JVT，Joint Video Team）提出的高压缩率的数
+字视频编解码器标准。H.265 是ITU-TVCEG 继H.264 之后所制定的新的
+视频编码标准。"
+AVS,指,中国牵头制定的第二代数字音视频信源标准
+JAVS,指,在AVS 基础上开发的国家军用数字音视频信源标准
+SIP,指,"SIP（Session Initiation Protocol，会话初始协议）是由 IETF（Internet
+Engineering Task Force，因特网工程任务组）制定的多媒体通信协议。"
+G.711,指,"G.711 是一种由国际电信联盟（ITU-T）制定的音频编码方式，又称为
+ITU-TG.711。"
+AAC,指,"AAC（Advanced Audio Coding），中文名：高级音频编码，出现于1997
+年，基于MPEG-2 的音频编码技术。由Fraunhofer IIS、杜比实验室、AT&T、
+Sony 等公司共同开发，目的是取代 MP3 格式。2000 年，MPEG-4 标准
+出现后，AAC 重新集成了其特性，加入了SBR 技术和PS 技术，为了区
+别于传统的MPEG-2AAC 又称为MPEG-4AAC。"
+终端,指,"计算机网络中处于网络最外围的设备，主要用于用户信息的输入以及处
+理结果的输出等。"
+军工四证,指,"《武器装备科研生产单位保密资格证书》、《武器装备科研生产许可证》、
+《装备承制单位注册证书》、《武器装备质量体系认证证书》"
+高速KVM,指,"KVM 全称是基于内核的虚拟机（Kernel-based Virtual Machine），它是
+一个Linux 的一个内核模块，KVM 中，虚拟机被实现为常规的Linux 进
+程，由标准Linux 调度程序进行调度，虚机的每个虚拟CPU 被实现为一
+个常规的Linux 进程，这使得KMV 能够使用Linux 内核的已有功能。"

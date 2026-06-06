@@ -1,0 +1,174 @@
+"""
+文本切分模块 - 将文本和表格内容切分为可控片段
+工单编号：人工智能NLP-RAG-PDF文档的表格解析及检索优化
+"""
+import os
+import json
+import re
+from config import CHUNK_SIZE, CHUNK_OVERLAP, OUTPUT_DIR, log
+
+
+def split_text(text: str, chunk_size: int = CHUNK_SIZE,
+               overlap: int = CHUNK_OVERLAP) -> list:
+    """
+    将文本按指定大小切分为重叠片段
+
+    Returns:
+        [{chunk_index: int, text: str, char_count: int}, ...]
+    """
+    if not text or len(text) <= chunk_size:
+        return [{"chunk_index": 0, "text": text, "char_count": len(text or "")}]
+
+    chunks = []
+    start = 0
+    index = 0
+
+    while start < len(text):
+        end = start + chunk_size
+        chunk_text = text[start:end]
+
+        chunks.append({
+            "chunk_index": index,
+            "text": chunk_text,
+            "char_count": len(chunk_text),
+        })
+        index += 1
+
+        # 移动起始位置（带重叠）
+        step = chunk_size - overlap
+        if step <= 0:
+            step = chunk_size // 2
+        start += step
+
+    log(f"文本切分为 {len(chunks)} 个片段 (chunk_size={chunk_size}, overlap={overlap})", "SPLIT")
+    return chunks
+
+
+def split_by_sections(sections: list, chunk_size: int = CHUNK_SIZE) -> list:
+    """
+    按章节结构切分，保持章节完整性
+
+    Args:
+        sections: [{level, title, content}, ...] 来自 pdf_parser
+
+    Returns:
+        [{chunk_index, text, section_title, section_level, metadata}, ...]
+    """
+    chunks = []
+    index = 0
+
+    for sec in sections:
+        text = "\n".join(sec["content"]).strip()
+        if not text:
+            continue
+
+        title = sec["title"] or "无标题"
+        level = sec.get("level", 0)
+
+        # 如果文本较短，直接作为一个 chunk
+        if len(text) <= chunk_size:
+            chunks.append({
+                "chunk_index": index,
+                "text": f"{'#' * level} {title}\n{text}",
+                "section_title": title,
+                "section_level": level,
+                "char_count": len(text),
+            })
+            index += 1
+        else:
+            # 长文本按段落切分
+            paragraphs = text.split("\n\n")
+            current_text = f"{'#' * level} {title}\n"
+            for para in paragraphs:
+                para = para.strip()
+                if not para:
+                    continue
+                if len(current_text) + len(para) > chunk_size and len(current_text) > 200:
+                    chunks.append({
+                        "chunk_index": index,
+                        "text": current_text,
+                        "section_title": title,
+                        "section_level": level,
+                        "char_count": len(current_text),
+                    })
+                    index += 1
+                    current_text = f"{'#' * level} {title} ({index})\n{para}\n"
+                else:
+                    current_text += para + "\n\n"
+
+            if len(current_text.strip()) > 50:
+                chunks.append({
+                    "chunk_index": index,
+                    "text": current_text,
+                    "section_title": title,
+                    "section_level": level,
+                    "char_count": len(current_text),
+                })
+                index += 1
+
+    log(f"按章节切分为 {len(chunks)} 个片段", "SPLIT")
+    return chunks
+
+
+def merge_text_and_table_chunks(text_chunks: list, table_blocks: list) -> list:
+    """
+    合并文本和表格片段，表格优先保留完整结构
+
+    Returns:
+        [{chunk_index, text, type: text|table, metadata}, ...]
+    """
+    merged = []
+
+    # 先加入所有文本片段
+    for tc in text_chunks:
+        merged.append({
+            "chunk_index": len(merged),
+            "text": tc["text"],
+            "type": "text",
+            "section_title": tc.get("section_title", ""),
+            "section_level": tc.get("section_level", 0),
+        })
+
+    # 再加入表格片段（用单独的索引标识）
+    for tb in table_blocks:
+        merged.append({
+            "chunk_index": len(merged),
+            "text": tb["text"],
+            "type": "table",
+            "table_index": tb.get("table_index", 0),
+            "metadata": tb.get("metadata", {}),
+        })
+
+    log(f"合并后共 {len(merged)} 个片段 (文本{len(text_chunks)}+表格{len(table_blocks)})", "SPLIT")
+    return merged
+
+
+def save_chunks_json(chunks: list, filename: str = "chunks.json"):
+    """保存切分结果到 JSON"""
+    out_path = os.path.join(OUTPUT_DIR, filename)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(chunks, f, ensure_ascii=False, indent=2)
+    log(f"切分结果已保存: {out_path} ({len(chunks)} 个片段)", "SPLIT")
+
+
+def save_chunks_text(chunks: list, filename: str = "chunks.txt"):
+    """保存切分结果为可读文本"""
+    out_path = os.path.join(OUTPUT_DIR, filename)
+    with open(out_path, "w", encoding="utf-8") as f:
+        for c in chunks:
+            f.write(f"{'='*60}\n")
+            f.write(f"片段 #{c['chunk_index']} | 类型: {c.get('type', 'text')}\n")
+            if c.get("section_title"):
+                f.write(f"章节: {c['section_title']}\n")
+            f.write(f"{'='*60}\n")
+            f.write(c["text"])
+            f.write("\n\n")
+    log(f"切分可读文本已保存: {out_path}", "SPLIT")
+
+
+if __name__ == "__main__":
+    # 测试
+    test = "这是一段测试文本。" * 200
+    chunks = split_text(test)
+    print(f"切分成 {len(chunks)} 个片段")
+    save_chunks_json(chunks)

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<!--
+index.html - RAG工单5 多轮对话前端页面
+工单编号: 人工智能NLP-RAG-Query理解优化任务
+功能: 提供多轮对话界面，支持上下文理解、指代消解、
+      历史回顾、清空对话等功能
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG工单5 - Query理解优化多轮对话</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"Microsoft YaHei",sans-serif;background:#f0f2f5;color:#333;height:100vh;display:flex;flex-direction:column}
+.header{background:linear-gradient(135deg,#1a73e8,#1557b0);color:white;padding:14px 20px;text-align:center;flex-shrink:0}
+.header h1{font-size:18px}
+.header .sub{font-size:12px;opacity:.85;margin-top:3px}
+.chat-box{flex:1;overflow-y:auto;padding:16px 20px;max-width:800px;margin:0 auto;width:100%}
+.msg{max-width:85%;margin-bottom:16px;padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.7;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg-user{background:#1a73e8;color:white;margin-left:auto;border-bottom-right-radius:4px}
+.msg-bot{background:white;color:#333;margin-right:auto;border-bottom-left-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.msg .meta{font-size:11px;margin-top:6px;opacity:.7}
+.msg-user .meta{color:rgba(255,255,255,.7)}
+.msg-bot .meta{color:#999}
+.msg .tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:10px;margin-right:4px}
+.tag-green{background:#e6f7ed;color:#389e0d}
+.tag-orange{background:#fff7e6;color:#d48806}
+.input-area{flex-shrink:0;background:white;border-top:1px solid #e8e8e8;padding:12px 20px;max-width:800px;margin:0 auto;width:100%}
+.input-row{display:flex;gap:8px}
+.input-row textarea{flex:1;padding:10px 14px;border:1px solid #d9d9d9;border-radius:8px;font-size:14px;resize:none;height:44px;line-height:24px;transition:border-color .3s}
+.input-row textarea:focus{outline:none;border-color:#1a73e8;box-shadow:0 0 0 2px rgba(26,115,232,.15)}
+.btn-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.btn{padding:6px 16px;border:none;border-radius:6px;font-size:13px;cursor:pointer;transition:all .2s}
+.btn-primary{background:#1a73e8;color:white}
+.btn-primary:hover{background:#1557b0}
+.btn-primary:disabled{background:#a0c4ff;cursor:not-allowed}
+.btn-secondary{background:#f0f0f0;color:#333}
+.btn-secondary:hover{background:#e0e0e0}
+.btn-green{background:#389e0d;color:white}
+.btn-green:hover{background:#2d7a0a}
+.quick-qs{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.quick-q{padding:4px 12px;background:#e8f0fe;border-radius:14px;font-size:12px;cursor:pointer;color:#1a73e8;border:1px solid #d2e3fc;transition:all .2s}
+.quick-q:hover{background:#d2e3fc}
+.loading{display:none;text-align:center;padding:20px}
+.loading.active{display:block}
+.spinner{width:28px;height:28px;border:3px solid #e0e0e0;border-top-color:#1a73e8;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.welcome{text-align:center;padding:60px 20px;color:#999}
+.welcome h3{color:#333;margin-bottom:8px}
+.welcome p{font-size:13px;line-height:1.8}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>💬 多轮对话 - Query理解优化</h1>
+    <div class="sub">工单编号: 人工智能NLP-RAG-Query理解优化任务 | 支持指代消解+省略补全</div>
+</div>
+
+<div class="chat-box" id="chatBox">
+    <div class="welcome" id="welcome">
+        <h3>👋 开始对话</h3>
+        <p>试试以下问题，体验多轮对话的指代消解能力：<br>
+        1️⃣ "报告期内，武汉兴图新科电子股份有限公司来自军用领域的收入分别是多少？"<br>
+        2️⃣ "他参与的哪个工程荣获了国家科技进步一等奖？"<br>
+        3️⃣ "这个公司的法定代表人是谁？"<br>
+        4️⃣ "那武汉力源信息技术股份有限公司呢？"<br>
+        5️⃣ "武汉力源信息技术股份有限公司组织结构图中，哪个销售部的销售处最多？有哪些销售处？"</p>
+    </div>
+    <div class="loading" id="loading"><div class="spinner"></div><div>正在思考...</div></div>
+</div>
+
+<div class="input-area">
+    <div class="quick-qs" id="quickQs">
+        <span class="quick-q" onclick="quickAsk(0)">兴图新科军用收入</span>
+        <span class="quick-q" onclick="quickAsk(1)">他参与的获奖工程</span>
+        <span class="quick-q" onclick="quickAsk(2)">这个公司的法定代表人</span>
+        <span class="quick-q" onclick="quickAsk(3)">那力源信息呢</span>
+        <span class="quick-q" onclick="quickAsk(4)">力源销售部最多处</span>
+    </div>
+    <div class="input-row">
+        <textarea id="input" placeholder="输入问题..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
+        <button class="btn btn-primary" id="sendBtn" onclick="send()">发送</button>
+    </div>
+    <div class="btn-row">
+        <button class="btn btn-secondary" onclick="clearChat()">🗑️ 清空对话</button>
+    </div>
+</div>
+
+<script>
+const quickQuestions = [
+    "报告期内，武汉兴图新科电子股份有限公司来自军用领域的收入分别是多少？",
+    "他参与的哪个工程荣获了国家科技进步一等奖？",
+    "这个公司的法定代表人是谁？",
+    "那武汉力源信息技术股份有限公司呢？",
+    "武汉力源信息技术股份有限公司组织结构图中，哪个销售部的销售处最多？有哪些销售处？",
+];
+let sessionId = 'default';
+let isLoading = false;
+
+async function send() {
+    const input = document.getElementById('input');
+    const question = input.value.trim();
+    if (!question || isLoading) return;
+
+    input.value = '';
+    isLoading = true;
+    document.getElementById('sendBtn').disabled = true;
+
+    // 隐藏欢迎语
+    document.getElementById('welcome').style.display = 'none';
+
+    // 显示用户消息
+    addMessage(question, 'user');
+
+    // 显示加载
+    document.getElementById('loading').classList.add('active');
+
+    try {
+        const res = await fetch('/ask', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({question, session_id: sessionId})
+        });
+        const data = await res.json();
+
+        document.getElementById('loading').classList.remove('active');
+
+        let answerText = data.answer || '未获取到答案';
+        let metaHtml = '';
+
+        if (data.rewritten_question && data.rewritten_question !== question) {
+            metaHtml += `<span class="tag tag-orange">🔄 重写: ${data.rewritten_question}</span>`;
+        }
+        metaHtml += `<span class="tag tag-green">🎯 ${data.confidence === 'high' ? '高' : data.confidence === 'medium' ? '中' : '低'}置信度</span>`;
+        metaHtml += `⏱️ ${(data.response_time || 0).toFixed(1)}秒`;
+        metaHtml += ` | 📄 ${data.source_count || 0}个来源`;
+
+        addMessage(answerText, 'bot', metaHtml);
+
+    } catch (err) {
+        document.getElementById('loading').classList.remove('active');
+        addMessage('请求失败: ' + err.message, 'bot', '<span style="color:#cf1322">❌ 错误</span>');
+    }
+
+    isLoading = false;
+    document.getElementById('sendBtn').disabled = false;
+    document.getElementById('input').focus();
+    scrollToBottom();
+}
+
+function addMessage(content, role, meta) {
+    const chatBox = document.getElementById('chatBox');
+    const div = document.createElement('div');
+    div.className = `msg msg-${role}`;
+    div.innerHTML = `<div>${content}</div>${meta ? `<div class="meta">${meta}</div>` : ''}`;
+    chatBox.appendChild(div);
+    scrollToBottom();
+}
+
+function scrollToBottom() {
+    const chatBox = document.getElementById('chatBox');
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function quickAsk(idx) {
+    document.getElementById('input').value = quickQuestions[idx];
+    send();
+}
+
+async function clearChat() {
+    document.getElementById('chatBox').innerHTML = `
+        <div class="welcome" id="welcome">
+            <h3>👋 对话已清空</h3>
+            <p>开始新对话吧！</p>
+        </div>`;
+    document.getElementById('loading').classList.remove('active');
+
+    await fetch('/reset', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({session_id: sessionId})
+    });
+}
+</script>
+</body>
+</html>

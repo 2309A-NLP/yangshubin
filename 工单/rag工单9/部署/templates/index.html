@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphRAG优化前后对比</title>
+<style>
+body { font-family:"Microsoft YaHei",sans-serif;margin:0;padding:20px;background:#f0f2f5;color:#333; }
+.container { max-width:1100px;margin:0 auto; }
+.header { background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#fff;padding:25px 35px;border-radius:12px;margin-bottom:20px; }
+.header h1 { margin:0;font-size:24px; }
+.header p { margin:5px 0 0;opacity:0.8;font-size:14px; }
+.cards { display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px; }
+.card { background:#fff;border-radius:10px;padding:18px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.06); }
+.card .val { font-size:26px;font-weight:700;display:block; }
+.card .label { font-size:13px;color:#888;margin-top:3px; }
+.card .delta { font-size:12px;font-weight:600; }
+.green { color:#4CAF50; } .red { color:#f44336; } .blue { color:#2196F3; }
+.comparison { background:#fff;border-radius:10px;padding:20px;margin-bottom:20px;box-shadow:0 2px 6px rgba(0,0,0,0.06); }
+.bar-container { margin:12px 0; }
+.bar-label { display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px; }
+.bar { height:22px;background:#e0e0e0;border-radius:6px;overflow:hidden; }
+.bar-fill { height:100%;border-radius:6px;transition:width 0.6s; }
+.bar-fill.before { background:linear-gradient(90deg,#2196F3,#64B5F6); }
+.bar-fill.after { background:linear-gradient(90deg,#4CAF50,#81C784); }
+.threshold { border-top:2px dashed #f44336;height:0;position:relative; }
+.status { display:inline-block;padding:3px 12px;border-radius:12px;color:#fff;font-size:13px; }
+.pass { background:#4CAF50; } .fail { background:#f44336; }
+table { width:100%;border-collapse:collapse;font-size:14px; }
+th { background:#f5f5f5;padding:10px 12px;text-align:left;font-weight:600; }
+td { padding:10px 12px;border-top:1px solid #eee; }
+tr:hover td { background:#fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header"><h1>📊 GraphRAG 优化前后对比</h1><p>工单编号: <span id="woId">{{ wo_id }}</span></p></div>
+
+<div id="summaryCards" class="cards"><div class="loading">加载中...</div></div>
+<div id="comparison" class="comparison" style="display:none">
+<h3>📈 关键指标对比</h3>
+<div id="bars"></div>
+<div style="margin-top:15px">
+<span>阈值达标: </span>
+<span id="beforeStatus" class="status"></span>
+<span style="margin-left:10px">→</span>
+<span id="afterStatus" class="status" style="margin-left:10px"></span>
+</div>
+</div>
+<div id="detailTable" style="display:none">
+<h3>📋 逐题对比</h3>
+<table><thead><tr>
+<th>题目</th><th>优化前精度</th><th>优化后精度</th><th>优化前召回</th><th>优化后召回</th>
+</tr></thead><tbody id="tableBody"></tbody></table>
+</div>
+</div>
+
+<script>
+async function loadData() {
+    try {
+        const r = await fetch('/api/report').then(r=>r.json());
+        if (r.error) throw new Error(r.error);
+        renderSummary(r.summary);
+        renderBars(r.summary);
+        renderTable(r.details);
+    } catch(e) {
+        document.getElementById('summaryCards').innerHTML=`<div style="color:red">❌ 加载失败: ${e.message}</div>`;
+    }
+}
+function renderSummary(s) {
+    const b=s.before||{}, a=s.after||{}, imp=s.improvement||{};
+    document.getElementById('summaryCards').innerHTML=[
+        {v:b.avg_precision?.toFixed(4)||'—',l:'优化前精度',c:'blue'},
+        {v:a.avg_precision?.toFixed(4)||'—',l:'优化后精度',d:`${imp.precision_delta>0?'+':''}${imp.precision_delta?.toFixed(4)}`,c:'green'},
+        {v:b.avg_recall?.toFixed(4)||'—',l:'优化前召回',c:'blue'},
+        {v:a.avg_recall?.toFixed(4)||'—',l:'优化后召回',d:`${imp.recall_delta>0?'+':''}${imp.recall_delta?.toFixed(4)}`,c:'green'},
+        {v:b.avg_response_time+'s',l:'优化前响应',c:'blue'},
+        {v:a.avg_response_time+'s',l:'优化后响应',d:`${imp.time_delta<0?'':'+'}${imp.time_delta}s`,c:imp.time_delta<0?'green':'red'},
+    ].map(c=>`<div class="card"><span class="val ${c.c}">${c.v}</span><span class="label">${c.l}</span>${c.d?`<span class="delta ${c.c}">${c.d}</span>`:''}</div>`).join('');
+}
+function renderBars(s) {
+    document.getElementById('comparison').style.display='block';
+    const b=s.before||{}, a=s.after||{};
+    const maxVal = Math.max(b.avg_precision||0,a.avg_precision||0,b.avg_recall||0,a.avg_recall||0,1)*1.2;
+    const pcts = v=>Math.min((v/maxVal)*100,100);
+    document.getElementById('bars').innerHTML=[
+        {l:'上下文精度',bv:b.avg_precision||0,av:a.avg_precision||0},
+        {l:'上下文召回',bv:b.avg_recall||0,av:a.avg_recall||0},
+    ].map(item=>`
+        <div class="bar-container">
+            <div class="bar-label"><span>${item.l}</span>
+            <span>优化前:${item.bv.toFixed(4)} | 优化后:${item.av.toFixed(4)}</span></div>
+            <div class="bar"><div class="bar-fill before" style="width:${pcts(item.bv)}%"></div></div>
+            <div class="bar" style="margin-top:4px"><div class="bar-fill after" style="width:${pcts(item.av)}%"></div></div>
+        </div>`).join('');
+    const mt=s.before_meets_threshold;
+    const mat=s.after_meets_threshold;
+    document.getElementById('beforeStatus').className='status '+(mt?'pass':'fail');
+    document.getElementById('beforeStatus').textContent=mt?'✅ 达标':'❌ 未达标';
+    document.getElementById('afterStatus').className='status '+(mat?'pass':'fail');
+    document.getElementById('afterStatus').textContent=mat?'✅ 达标':'❌ 未达标';
+}
+function renderTable(d) {
+    document.getElementById('detailTable').style.display='block';
+    const bef=d.before||[], aft=d.after||[];
+    document.getElementById('tableBody').innerHTML=bef.map((b,i)=>{
+        const a=aft[i]||{};
+        return `<tr><td>Q${b.question_id}: ${(b.question||'').substring(0,25)}</td>
+        <td>${b.context_precision?.toFixed(3)}</td><td>${a.context_precision?.toFixed(3)}</td>
+        <td>${b.context_recall?.toFixed(3)}</td><td>${a.context_recall?.toFixed(3)}</td></tr>`;
+    }).join('');
+}
+loadData();
+</script>
+</body>
+</html>

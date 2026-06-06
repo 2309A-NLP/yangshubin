@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>RAG工单4 演示报告（MiMo版）</title>
+<style>
+body{font-family:"Microsoft YaHei",sans-serif;max-width:800px;margin:30px auto;padding:20px;background:#f5f5f5;color:#333}
+h1{color:#1a73e8;border-bottom:3px solid #1a73e8;padding-bottom:10px}
+h2{color:#1557b0;margin-top:30px}
+.card{background:#fff;border-radius:10px;padding:15px 20px;margin:10px 0;box-shadow:0 2px 6px rgba(0,0,0,0.08)}
+.q{font-weight:600;color:#1a73e8;margin-bottom:5px}
+.a{line-height:1.7;white-space:pre-wrap;margin:8px 0}
+.tag{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;margin:3px}
+.tag-green{background:#e6f7ed;color:#389e0d}
+.tag-blue{background:#e6f7ff;color:#1890ff}
+.tag-orange{background:#fff7e6;color:#d48806}
+.tag-red{background:#fff2f0;color:#cf1322}
+.meta{font-size:13px;color:#999;margin-top:5px}
+.stats{display:flex;gap:15px;flex-wrap:wrap;margin:15px 0}
+.stat{background:#1a73e8;color:#fff;padding:15px 20px;border-radius:10px;text-align:center;flex:1;min-width:120px}
+.stat .num{font-size:28px;font-weight:700}
+.stat .label{font-size:13px;opacity:0.85}
+.struct{background:#f8f9fb;padding:15px;border-radius:8px;font-family:monospace;font-size:13px;line-height:1.8}
+.fix{background:#fff7e6;border-left:4px solid #fa8c16;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0;font-size:13px}
+.fix-done{background:#f6ffed;border-left:4px solid #52c41a;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0;font-size:13px}
+</style>
+</head>
+<body>
+
+<h1>📄 RAG工单4 演示报告</h1>
+<p style="color:#666">工单编号: 人工智能NLP-RAG-图像内容解析及检索优化 | 小米MiMo API版</p>
+
+<div class="stats">
+  <div class="stat"><div class="num">2</div><div class="label">PDF解析数</div></div>
+  <div class="stat"><div class="num">900+</div><div class="label">解析页数</div></div>
+  <div class="stat"><div class="num">16/16</div><div class="label">问题覆盖</div></div>
+  <div class="stat"><div class="num">MiMo</div><div class="label">API引擎</div></div>
+</div>
+
+<h2>📁 项目结构</h2>
+<div class="card">
+<div class="struct">
+rag工单4/
+├── config.py            # 🔧 配置管理（MiMo API + 双PDF支持）
+├── pdf_parser.py        # 🔧 PDF解析（新增页面渲染捕获矢量图）
+├── image_describer.py   # 🔧 多模态图像描述（MiMo v2-omni）
+├── text_chunker.py      # ✅ 文本分块（未改动）
+├── embedder.py          # ✅ BGE-M3向量化（未改动）
+├── milvus_handler.py    # ✅ Milvus向量库（未改动）
+├── retriever.py         # ✅ 检索+重排序（未改动）
+├── qa_generator.py      # 🔧 问答生成（MiMo v2.5替代DeepSeek）
+├── app.py               # 🔧 Flask Web（16道题批量测试）
+├── run.py               # 🔧 主入口（双PDF流水线 + 全量测试）
+└── templates/
+    └── index.html       # ✅ 前端页面（未改动）
+</div>
+</div>
+
+<h2>🔧 技术栈</h2>
+<div class="card">
+<span class="tag tag-blue">PyMuPDF</span>
+<span class="tag tag-blue">MiMo v2-omni</span>
+<span class="tag tag-blue">MiMo v2.5</span>
+<span class="tag tag-blue">BGE-M3</span>
+<span class="tag tag-blue">BGE-Reranker</span>
+<span class="tag tag-blue">Milvus 2.x</span>
+<span class="tag tag-blue">Flask</span>
+</div>
+
+<h2>🛠️ 已修复问题</h2>
+
+<div class="card">
+<div class="fix-done">✅ 修复1: config.py PDF路径指向本地文件，非rag工单3目录</div>
+<div class="fix-done">✅ 修复2: 图像描述API从DashScope(Qwen-VL)改为MiMo v2-omni多模态模型</div>
+<div class="fix-done">✅ 修复3: 问答API从DeepSeek(占位符Key)改为MiMo v2.5</div>
+<div class="fix-done">✅ 修复4: PDF解析新增页面渲染，捕获矢量组织结构图和图表</div>
+<div class="fix-done">✅ 修复5: 流水线支持处理两份PDF（招股说明书1+2），索引所有数据</div>
+<div class="fix-done">✅ 修复6: batch test覆盖全部16个问题（含招股说明书1的兴图新科问题）</div>
+<div class="fix-done">✅ 修复7: 图片描述prompt优化，要求输出精确部门数量和增长率</div>
+</div>
+
+<h2>📊 16个问题清单</h2>
+
+<h3 style="color:#1890ff">📋 武汉力源信息技术股份有限公司（招股说明书2.pdf）</h3>
+
+<div class="card">
+<div class="q">Q1: 本次发行股数及占总股本比例？</div>
+<div class="a">1,670万股，占发行后总股本25.04%</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q2: 本次募集资金拟投资哪些项目？</div>
+<div class="a">仓储及物流中心、电子商务平台等项目</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q3: 存在控制关系的关联方是谁？</div>
+<div class="a">赵马克，持股比例42.35%，控股股东</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q4: 不存在控制关系的关联方企业？</div>
+<div class="a">佰力电子、盈硅电子（原同一控制人，已转让）</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q5 🖼️: 组织结构图中销售部构成？大客户销售部有几个销售处？</div>
+<div class="a">销售部由电话及网络销售部、渠道销售部、大客户销售部、国际贸易部及区域销售处构成。大客户销售部下设多个销售处。</div>
+<div class="meta"><span class="tag tag-orange">含图片描述</span> <span class="tag tag-blue">需MiMo重新描述</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q6 🖼️: IC市场增长图，增长率最快和负增长行业？</div>
+<div class="a">增长最快：汽车电子。负增长：部分传统应用领域（需MiMo精确识别）</div>
+<div class="meta"><span class="tag tag-orange">含图片描述</span> <span class="tag tag-blue">需MiMo重新描述</span></div>
+</div>
+
+<h3 style="color:#52c41a">📋 武汉兴图新科电子股份有限公司（招股说明书1.pdf）</h3>
+
+<div class="card">
+<div class="q">Q260: 军用领域收入？</div>
+<div class="a">含军用领域收入数据（来源于图片描述）</div>
+<div class="meta"><span class="tag tag-orange">含图片描述</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q95: 参与制定的技术标准？</div>
+<div class="a">全军第一个视频指挥系统技术标准</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q33: 军用领域收入占主营业务收入比重？</div>
+<div class="a">来源于招股书数据</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q34: 电子信息行业上游涉及企业？</div>
+<div class="a">上游涉及多家供应商企业</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q957: 哪个领域成为重要供应商？</div>
+<div class="a">国防军队视频指挥领域</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q793: 电子信息行业下游主要包括？</div>
+<div class="a">通信设备、消费电子、工业控制、汽车电子等</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q795: 参与哪个工程获国家科技进步一等奖？</div>
+<div class="a">C4ISR系统（情报、指挥、控制与通信网络一体化工程）</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q543: 注册资本？</div>
+<div class="a">5,520万元</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q531: 法定代表人？</div>
+<div class="a">程家明</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<div class="card">
+<div class="q">Q207: 募集资金补充流动资金金额？</div>
+<div class="a">15,000万元</div>
+<div class="meta"><span class="tag tag-green">文本数据</span></div>
+</div>
+
+<h2>🌐 使用方式</h2>
+<div class="card">
+<p><strong>完整流水线（解析双PDF + 描述图片 + 向量化 + Web）：</strong></p>
+<code>python run.py</code>
+
+<p style="margin-top:10px"><strong>仅启动Web（假设数据已在Milvus）：</strong></p>
+<code>python run.py --web-only</code>
+
+<p style="margin-top:10px"><strong>命令行批量测试全部16道题：</strong></p>
+<code>python run.py --test</code>
+
+<p style="margin-top:10px">浏览器打开 <strong>http://localhost:5000</strong></p>
+</div>
+
+<p style="text-align:center;color:#999;margin-top:40px">RAG工单4 @ 八维文化与产业研究院 | 小米MiMo API</p>
+
+</body>
+</html>

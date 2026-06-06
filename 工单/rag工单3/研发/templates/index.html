@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>招股说明书 RAG 问答系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { font-size: 22px; font-weight: 600; }
+        .header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 0 20px; }
+        .main { max-width: 1000px; margin: 20px auto; padding: 0 20px; }
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .input-area { display: flex; gap: 12px; }
+        .input-area input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-area input:focus { border-color: #1a73e8; }
+        .input-area button {
+            padding: 12px 28px;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .input-area button:hover { background: #1557b0; }
+        .input-area button:disabled { background: #999; cursor: not-allowed; }
+        .suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .suggestions button {
+            padding: 6px 14px;
+            background: #e8f0fe;
+            color: #1a73e8;
+            border: 1px solid #d2e3fc;
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .suggestions button:hover { background: #d2e3fc; }
+        .loading { display: none; align-items: center; gap: 10px; padding: 16px 0; }
+        .loading.active { display: flex; }
+        .spinner {
+            width: 20px; height: 20px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #1a73e8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .answer-area { display: none; }
+        .answer-area.active { display: block; }
+        .answer-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 12px;
+        }
+        .answer-header h2 { font-size: 16px; color: #333; }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge.high { background: #e6f4ea; color: #1e7e34; }
+        .badge.low { background: #fce8e6; color: #c5221f; }
+        .answer-content {
+            background: #f8f9fa;
+            border-left: 4px solid #1a73e8;
+            padding: 16px;
+            border-radius: 4px;
+            line-height: 1.7;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        .sources { margin-top: 16px; }
+        .sources h3 { font-size: 14px; color: #666; margin-bottom: 8px; }
+        .source-item {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 6px;
+            font-size: 13px;
+            border-left: 3px solid #dadce0;
+        }
+        .source-item .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-right: 6px;
+        }
+        .tag.table { background: #e8f5e9; color: #2e7d32; }
+        .tag.text { background: #e3f2fd; color: #1565c0; }
+        .tag.score { color: #999; font-size: 11px; }
+        .history { margin-top: 20px; }
+        .history h3 { font-size: 14px; color: #666; margin-bottom: 8px; }
+        .history-item {
+            display: flex; justify-content: space-between;
+            padding: 8px 12px; border-radius: 6px;
+            cursor: pointer; transition: background 0.2s;
+            font-size: 13px;
+        }
+        .history-item:hover { background: #f0f0f0; }
+        .history-item .q { color: #333; }
+        .history-item .time { color: #999; font-size: 11px; }
+        .footer { text-align: center; padding: 20px; color: #999; font-size: 12px; }
+        .lang-switch {
+            position: absolute; top: 20px; right: 20px;
+            display: flex; gap: 4px;
+        }
+        .lang-switch button {
+            padding: 4px 12px; border: 1px solid rgba(255,255,255,0.3);
+            background: transparent; color: white; border-radius: 4px;
+            cursor: pointer; font-size: 12px; transition: all 0.2s;
+        }
+        .lang-switch button.active { background: rgba(255,255,255,0.2); border-color: white; }
+        .lang-switch button:hover { background: rgba(255,255,255,0.15); }
+        .header { position: relative; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="container">
+        <h1 id="headerTitle">📄 招股说明书 RAG 问答系统</h1>
+        <p id="headerDesc">基于 MinerU + BGE-M3 + DeepSeek 的 PDF 表格解析与智能问答</p>
+        <div class="lang-switch">
+            <button id="langZh" class="active" onclick="switchLang('zh')">中文</button>
+            <button id="langEn" onclick="switchLang('en')">EN</button>
+        </div>
+    </div>
+</div>
+
+<div class="main">
+    <div class="card">
+        <div class="input-area">
+            <input type="text" id="questionInput"
+                   placeholder="输入关于招股说明书的问题..."
+                   onkeydown="if(event.key==='Enter') ask()">
+            <button id="askBtn" onclick="ask()">提问</button>
+        </div>
+
+        <div class="suggestions" id="suggestions"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <span>正在检索并生成答案...</span>
+        </div>
+
+        <div class="answer-area" id="answerArea">
+            <div class="answer-header">
+                <h2>📝 答案</h2>
+                <span class="badge" id="confidenceBadge">高置信度</span>
+            </div>
+            <div class="answer-content" id="answerContent"></div>
+
+            <div class="sources" id="sourcesArea">
+                <h3>📎 参考来源</h3>
+                <div id="sourcesList"></div>
+            </div>
+        </div>
+
+        <div class="history" id="historyArea" style="display:none">
+            <h3>🕐 历史记录</h3>
+            <div id="historyList"></div>
+        </div>
+    </div>
+</div>
+
+<div class="footer">
+    工单编号：人工智能NLP-RAG-PDF文档的表格解析及检索优化
+</div>
+
+<script>
+const I18N = {
+    zh: {
+        title: '📄 招股说明书 RAG 问答系统',
+        desc: '基于 MinerU + BGE-M3 + DeepSeek 的 PDF 表格解析与智能问答',
+        inputPlaceholder: '输入关于招股说明书的问题...',
+        askBtn: '提问',
+        loading: '正在检索并生成答案...',
+        answer: '📝 答案',
+        highConf: '高置信度',
+        lowConf: '低置信度',
+        sources: '📎 参考来源',
+        history: '🕐 历史记录',
+        tagTable: '表格',
+        tagDoc: '文档',
+        relevance: '相关度',
+        noAnswer: '无答案',
+        networkError: '网络错误',
+        footer: '工单编号：人工智能NLP-RAG-PDF文档的表格解析及检索优化'
+    },
+    en: {
+        title: '📄 Prospectus RAG Q&A System',
+        desc: 'PDF Table Parsing & Intelligent Q&A (MinerU + BGE-M3 + DeepSeek)',
+        inputPlaceholder: 'Ask about the prospectus...',
+        askBtn: 'Ask',
+        loading: 'Searching and generating answer...',
+        answer: '📝 Answer',
+        highConf: 'High Confidence',
+        lowConf: 'Low Confidence',
+        sources: '📎 Sources',
+        history: '🕐 History',
+        tagTable: 'Table',
+        tagDoc: 'Document',
+        relevance: 'Relevance',
+        noAnswer: 'No answer',
+        networkError: 'Network error',
+        footer: 'Ticket#: AI-NLP-RAG-PDF-Table-Parsing-Optimization'
+    }
+};
+
+let currentLang = localStorage.getItem('qa_lang') || 'zh';
+const SUGGESTIONS_ZH = [
+    "武汉力源信息技术股份有限公司本次发行股数是多少？",
+    "募集资金拟投资哪些项目？",
+    "武汉兴图新科电子股份有限公司注册资本是多少？",
+    "武汉兴图新科电子股份有限公司法定代表人是谁？",
+    "军用领域收入占主营业务收入比重是多少？",
+    "电子信息行业的上游涉及哪些企业？"
+];
+const SUGGESTIONS_EN = [
+    "How many shares did Wuhan Liyuan issue?",
+    "What projects will the raised funds invest in?",
+    "What is the registered capital of Wuhan Xingtu Xinke?",
+    "Who is the legal representative of Wuhan Xingtu Xinke?",
+    "What is the military revenue share?",
+    "What companies are in the upstream of the electronics industry?"
+];
+let history = JSON.parse(localStorage.getItem('qa_history') || '[]');
+
+function switchLang(lang) {
+    currentLang = lang;
+    localStorage.setItem('qa_lang', lang);
+    document.getElementById('langZh').className = lang === 'zh' ? 'active' : '';
+    document.getElementById('langEn').className = lang === 'en' ? 'active' : '';
+    applyI18N();
+    renderSuggestions();
+    renderHistory();
+}
+
+function applyI18N() {
+    const t = I18N[currentLang];
+    document.getElementById('headerTitle').textContent = t.title;
+    document.getElementById('headerDesc').textContent = t.desc;
+    document.getElementById('questionInput').placeholder = t.inputPlaceholder;
+    document.getElementById('askBtn').textContent = t.askBtn;
+}
+
+function renderSuggestions() {
+    const container = document.getElementById('suggestions');
+    container.innerHTML = '';
+    const items = currentLang === 'zh' ? SUGGESTIONS_ZH : SUGGESTIONS_EN;
+    items.forEach(q => {
+        const btn = document.createElement('button');
+        btn.textContent = q;
+        btn.onclick = () => { document.getElementById('questionInput').value = q; ask(); };
+        container.appendChild(btn);
+    });
+}
+
+function init() {
+    switchLang(currentLang);
+    renderSuggestions();
+    renderHistory();
+}
+
+async function ask() {
+    const input = document.getElementById('questionInput');
+    const question = input.value.trim();
+    if (!question) return;
+
+    const btn = document.getElementById('askBtn');
+    const loading = document.getElementById('loading');
+    const answerArea = document.getElementById('answerArea');
+    const t = I18N[currentLang];
+
+    btn.disabled = true;
+    loading.querySelector('span').textContent = t.loading;
+    loading.classList.add('active');
+    answerArea.classList.remove('active');
+
+    try {
+        const resp = await fetch('/api/qa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question, language: currentLang })
+        });
+        const data = await resp.json();
+
+        if (data.error) {
+            document.getElementById('answerContent').textContent = '❌ ' + data.error;
+        } else {
+            showAnswer(question, data);
+            addHistory(question, data);
+        }
+        answerArea.classList.add('active');
+    } catch (err) {
+        document.getElementById('answerContent').textContent = '❌ ' + t.networkError + ': ' + err.message;
+        answerArea.classList.add('active');
+    } finally {
+        btn.disabled = false;
+        loading.classList.remove('active');
+    }
+}
+
+function showAnswer(question, data) {
+    const t = I18N[currentLang];
+    document.getElementById('answerContent').textContent = data.answer || t.noAnswer;
+
+    const badge = document.getElementById('confidenceBadge');
+    const conf = data.confidence || 0;
+    if (conf > 0.5) {
+        badge.textContent = '✅ ' + t.highConf + ' (' + (conf * 100).toFixed(0) + '%)';
+        badge.className = 'badge high';
+    } else {
+        badge.textContent = '⚠️ ' + t.lowConf + ' (' + (conf * 100).toFixed(0) + '%)';
+        badge.className = 'badge low';
+    }
+
+    const sourcesList = document.getElementById('sourcesList');
+    sourcesList.innerHTML = '';
+    (data.sources || []).forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'source-item';
+        const type = s.source_type || 'text';
+        const tag = document.createElement('span');
+        tag.className = 'tag ' + type;
+        tag.textContent = type === 'table' ? t.tagTable : t.tagDoc;
+        const score = document.createElement('span');
+        score.className = 'score';
+        score.textContent = ' ' + t.relevance + ': ' + (s.score || 0).toFixed(3);
+        div.appendChild(tag);
+        div.appendChild(score);
+        div.appendChild(document.createTextNode(' ' + (s.text || '').substring(0, 150)));
+        sourcesList.appendChild(div);
+    });
+}
+
+function addHistory(question, data) {
+    history.unshift({
+        question,
+        answer: (data.answer || '').substring(0, 100),
+        time: new Date().toLocaleString(currentLang === 'zh' ? 'zh-CN' : 'en-US'),
+        lang: currentLang
+    });
+    if (history.length > 20) history.pop();
+    localStorage.setItem('qa_history', JSON.stringify(history));
+    renderHistory();
+}
+
+function renderHistory() {
+    const area = document.getElementById('historyArea');
+    const list = document.getElementById('historyList');
+    const t = I18N[currentLang];
+    area.querySelector('h3').textContent = t.history;
+    if (history.length === 0) { area.style.display = 'none'; return; }
+    area.style.display = 'block';
+    list.innerHTML = '';
+    history.forEach(h => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        div.innerHTML = '<span class="q">' + h.question + '</span><span class="time">' + h.time + '</span>';
+        div.onclick = () => {
+            document.getElementById('questionInput').value = h.question;
+            document.getElementById('answerContent').textContent = h.answer + '...';
+            document.getElementById('answerArea').classList.add('active');
+        };
+        list.appendChild(div);
+    });
+}
+
+init();
+</script>
+</body>
+</html>

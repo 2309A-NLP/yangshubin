@@ -1,0 +1,124 @@
+# Docker Compose 编排文件
+# 定义 RAG 金融问答系统的全部服务：etcd + minio + milvus-standalone + rag-app
+# 使用 Docker 卷持久化数据和模型文件，自定义网络实现容器间通信
+# 工单编号: 人工智能NLP-RAG-金融问答系统部署
+
+version: "3.5"
+
+services:
+  # ===== etcd: Milvus 元数据存储服务 =====
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: rag-etcd
+    restart: unless-stopped
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd_data:/etcd
+    # 启动 etcd 服务，监听 2379 端口
+    command: etcd -advertise-client-urls=http://0.0.0.0:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    networks:
+      - rag-net
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===== minio: Milvus 底层对象存储服务 =====
+  minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: rag-minio
+    restart: unless-stopped
+    environment:
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    volumes:
+      - minio_data:/data
+    # 启动 minio 服务，9000 为 API 端口
+    command: minio server /data
+    networks:
+      - rag-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===== milvus-standalone: Milvus 向量数据库服务 =====
+  milvus-standalone:
+    image: milvusdb/milvus:v2.3.10
+    container_name: rag-milvus
+    restart: unless-stopped
+    # milvus run standalone 启动单机模式，连接 etcd 和 minio
+    command: ["milvus", "run", "standalone"]
+    environment:
+      - ETCD_ENDPOINTS=etcd:2379
+      - MINIO_ADDRESS=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    volumes:
+      - milvus_data:/var/lib/milvus
+    ports:
+      - "19530:19530"  # 暴露 gRPC 端口给宿主机
+    depends_on:
+      - etcd
+      - minio
+    networks:
+      - rag-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===== rag-app: RAG 金融问答 Web 服务（主应用） =====
+  rag-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-app
+    restart: unless-stopped
+    ports:
+      - "5008:5008"  # Flask Web 服务端口
+    environment:
+      # --- MiMo API 配置 ---
+      - MIMO_API_KEY=tp-czex5np7bgf6duyuyvqntmw44xcunseatmblffiw9lk9w0jy
+      - MIMO_API_BASE=https://token-plan-cn.xiaomimimo.com/v1
+      - MIMO_MODEL=mimo-v2.5-pro
+      # --- Milvus 配置 ---
+      - MILVUS_HOST=milvus-standalone
+      - MILVUS_PORT=19530
+      # --- 模型和数据路径 ---
+      - BGE_MODEL_PATH=/models/bge-m3
+      - DATA_DIR=/data/pdfs
+      - USE_GPU=true
+      # --- Flask 配置 ---
+      - FLASK_PORT=5008
+      # 跳过程序初始化流水线（Milvus 首次自动建表）
+      - SKIP_INIT=1
+    volumes:
+      # 挂载宿主机 BGE-M3 模型到容器内（2.2GB 不打包入镜像）
+      - /mnt/c/Users/31326/Desktop/bge-m3:/models/bge-m3
+      # 挂载宿主机 PDF 数据目录
+      - /mnt/c/Users/31326/Desktop/rag工单10/data:/data/pdfs
+      # 挂载宿主机 Python site-packages（大依赖挂载而非打包）
+      - /usr/lib/python3/dist-packages:/host-packages:ro
+    depends_on:
+      - milvus-standalone
+    networks:
+      - rag-net
+
+# ===== 定义 Docker 卷（持久化存储） =====
+volumes:
+  etcd_data:     # etcd 元数据
+  minio_data:    # MinIO 对象存储
+  milvus_data:   # Milvus 向量索引
+
+# ===== 定义网络（容器间通信） =====
+networks:
+  rag-net:
+    driver: bridge

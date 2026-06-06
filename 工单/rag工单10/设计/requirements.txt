@@ -1,0 +1,8 @@
+flask
+flask-cors
+pymilvus
+sentence-transformers
+openai
+PyMuPDF
+networkx
+numpy
